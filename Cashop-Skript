@@ -1,0 +1,742 @@
+# Made By SangHeonKR
+
+options:
+	# 출력 메세지 앞에 사용될 머릿말
+	PREFIX: &6&l[CA$H]&r
+	
+	# 상점 이름 앞에 사용될 머릿말
+	SHOP_PREFIX: &6&l[$]&r
+	
+	# 화폐 단위
+	UNIT: C
+	
+function SalePrice(n:number, s:number) :: integer:
+	set {_saleP} to 1 - ({_s} / 100)
+	set {_r} to round ({_n} * {_saleP})
+	return {_r}
+
+on Load:
+	broadcast "{@PREFIX} 상점 데이터 갱신을 시작합니다."
+	
+	# 유저 커서값 초기화
+	clear {Cash.playerCur::*}
+	
+	# 식별인자 SHOP_PREFIX 변경확인후 갱신
+	if {Cash.PREFIX} is not set:
+		set {Cash.PREFIX} to "{@SHOP_PREFIX}"
+	if "%{Cash.PREFIX}%" is not "{@SHOP_PREFIX}":
+		loop {Cash.shopList::*}:
+			set {_tmp} to {Cash.shopOption::%loop-value%::NAME}
+			replace all "%{Cash.PREFIX}% " with "{@SHOP_PREFIX} " in {_tmp}
+			set {Cash.shopOption::%loop-value%::NAME} to {_tmp}
+		set {Cash.PREFIX} to "{@SHOP_PREFIX}"
+		
+	loop {Cash.shopList::*}:
+		set {_ID} to loop-value
+		set {_idx} to 0
+		loop {Cash.shopID::%{_ID}%::*}:
+			if loop-value-2 is air:
+				clear {Cash.shopSlot::%{_ID}%::%{_idx}%::*}
+			add 1 to {_idx}
+	wait a tick
+	broadcast "{@PREFIX} 상점 데이터 갱신이 끝났습니다."
+	
+
+on Join:
+	clear {Cash.playerCur::%player's uuid%::*}
+	if {Cash.amount::%player's uuid%} is not set:
+		set {Cash.amount::%player's uuid%} to 0
+
+	
+every 1 minute:
+	loop {Cash.shopList::*}:
+		set {_ID} to loop-value
+		loop {Cash.shopOption::%{_ID}%::ROW} * 9 times:
+			set {_idx} to loop-number -1
+			if {Cash.shopSlot::%{_ID}%::%{_idx}%::DATE} is set:
+				if {Cash.shopSlot::%{_ID}%::%{_idx}%::DATE} <= now:
+					clear {Cash.shopSlot::%{_ID}%::%{_idx}%::DATE}
+					clear {Cash.shopSlot::%{_ID}%::%{_idx}%::SALE}
+on Chat:
+	if {Cash.playerCur::%player's uuid%::SELECT} is "PRICE":
+		cancel event
+		set {_idx} to {Cash.playerCur::%player's uuid%::SLOT}
+		set {_ID} to {Cash.playerCur::%player's uuid%::ID}
+		set {_msg} to uncolored message parsed as number
+		if {_msg} is not set:
+			clear {Cash.playerCur::%player's uuid%::*}
+			send "{@PREFIX} 입력이 취소됬습니다."
+			stop
+		if {_msg} < 0 :
+			clear {Cash.shopSlot::%{_ID}%::%{_idx}%::PRICE}
+			send "{@PREFIX} 성공적으로 &e구매불가 &f으(로) 가격이 설정되었습니다."
+		else:
+			set {Cash.shopSlot::%{_ID}%::%{_idx}%::PRICE} to {_msg}
+			send "{@PREFIX} 성공적으로 &e%SetMoneyUnit({_msg})% &f으(로) 가격이 설정되었습니다."
+		clear {Cash.playerCur::%player's uuid%::*}
+		
+	else if {Cash.playerCur::%player's uuid%::SELECT} is "SALE":
+		cancel event
+		set {_idx} to {Cash.playerCur::%player's uuid%::SLOT}
+		set {_ID} to {Cash.playerCur::%player's uuid%::ID}
+		set {_msg} to message parsed as number
+		if {_msg} is not set:
+			clear {Cash.playerCur::%player's uuid%::*}
+			send "{@PREFIX} 입력이 취소됬습니다."
+			stop
+		if {_msg} > 100 :
+			clear {Cash.playerCur::%player's uuid%::*}
+			send "{@PREFIX} 입력된 할인율이 올바른 범위가 아닙니다. &e0~100"
+		else if {_msg} < 1 :
+			clear {Cash.shopSlot::%{_ID}%::%{_idx}%::SALE}
+			send "{@PREFIX} 성공적으로 &e할인없음 &f으(로) 할인율이 설정되었습니다."
+		else:
+			set {Cash.shopSlot::%{_ID}%::%{_idx}%::SALE} to {_msg}
+			send "{@PREFIX} 성공적으로 &e%{_msg}%&e%% &f으(로) 할인율이 설정되었습니다."
+		clear {Cash.playerCur::%player's uuid%::*}
+		
+	else if {Cash.playerCur::%player's uuid%::SELECT} is "DATE":
+		cancel event
+		set {_idx} to {Cash.playerCur::%player's uuid%::SLOT}
+		set {_ID} to {Cash.playerCur::%player's uuid%::ID}
+		set {_msg} to message
+		if length of {_msg} > 4 :
+			clear {Cash.playerCur::%player's uuid%::*}
+			send "{@PREFIX} 입력된 값이 올바르지 않습니다."
+			stop
+		if {_msg} contains "m" or "h" or "d":
+			replace all "m" with " m" in {_msg}
+			replace all "h" with " h" in {_msg}
+			replace all "d" with " d" in {_msg}
+			set {_array::*} to split {_msg} at " "
+			if size of {_array::*} > 2 :
+				send "{@PREFIX} 입력된 값이 올바르지 않습니다."
+				clear {Cash.playerCur::%player's uuid%::*}
+				stop
+			set {_int} to {_array::1} parsed as number
+			set {_date} to {_array::2}
+			if {_int} is not set:
+				send "{@PREFIX} 입력된 숫자가 올바르지 않습니다."
+				clear {Cash.playerCur::%player's uuid%::*}
+				stop
+			if {_int} < 1:
+				clear {Cash.shopSlot::%{_ID}%::%{_idx}%::DATE}
+				clear {Cash.playerCur::%player's uuid%::*}
+				send "{@PREFIX} 해당 아이템의 할인 기간이 초기화됬습니다."
+				stop
+			if {_int} > 999:
+				send "{@PREFIX} 입력된 숫자의 범위가 올바르지 않습니다."
+				clear {Cash.playerCur::%player's uuid%::*}
+				stop
+			set {_now} to now
+			if {_date} is "m":
+				loop {_int} times:
+					add 1 minute to {_now}
+				set {Cash.shopSlot::%{_ID}%::%{_idx}%::DATE} to {_now}
+				send "{@PREFIX} 할인기간이 &e%{_int}%&e분 &f으(로) 설정되어 할인율이 해당 기간동안만 유지됩니다."
+				
+			else if {_date} is "h":
+				loop {_int} times:
+					add 1 hour to {_now}
+				set {Cash.shopSlot::%{_ID}%::%{_idx}%::DATE} to {_now}
+				send "{@PREFIX} 할인기간이 &e%{_int}%&e시간 &f으(로) 설정되어 할인율이 해당 기간동안만 유지됩니다."
+				
+			else if {_date} is "d":
+				loop {_int} times:
+					add 1 day to {_now}
+				set {Cash.shopSlot::%{_ID}%::%{_idx}%::DATE} to {_now}
+				send "{@PREFIX} 할인기간이 &e%{_int}%&e일 &f으(로) 설정되어 할인율이 해당 기간동안만 유지됩니다."
+				
+			else:
+				send "{@PREFIX} 입력된 값이 올바르지 않습니다."
+		else:
+			send "{@PREFIX} 입력된 값이 올바르지 않습니다."
+		clear {Cash.playerCur::%player's uuid%::*}
+
+on Inventory Click:
+	if name of current inventory contains "{@SHOP_PREFIX}":
+		if clicked type is left mouse button with shift:
+			cancel event
+		else if clicked type is right mouse button with shift:
+			cancel event		
+		
+on Inventory Click:
+	if name of current inventory contains "{@SHOP_PREFIX}":
+		cancel event
+		if clicked item is air:
+			stop
+		if clicked item is not set:
+			stop
+		loop {Cash.shopList::*}:
+			set {_ID} to "%loop-value%"
+			if {Cash.shopOption::%{_ID}%::NAME} is name of current inventory:
+				set {_idx} to clicked slot
+				if {Cash.shopSlot::%{_ID}%::%{_idx}%::PRICE} is not set:
+					play raw sound "BLOCK_NOTE_BASS" at player with pitch 0.5 volume 0.5
+					send "{@PREFIX} 해당 아이템은 구매할 수 없습니다."
+					stop
+				set {_Price} to {Cash.shopSlot::%{_ID}%::%{_idx}%::PRICE}
+				if {Cash.shopSlot::%{_ID}%::%{_idx}%::SALE} is set:
+					set {_Price} to SalePrice({Cash.shopSlot::%{_ID}%::%{_idx}%::PRICE},{Cash.shopSlot::%{_ID}%::%{_idx}%::SALE})
+				if {Cash.amount::%player's uuid%} >= {_Price}:
+					if player has enough space for {Cash.shopID::%{_ID}%::%{_idx}%}:
+						set {Cash.amount::%player's uuid%} to {Cash.amount::%player's uuid%} - {_Price}
+						give {Cash.shopID::%{_ID}%::%{_idx}%} to player
+						play raw sound "ENTITY_EXPERIENCE_ORB_PICKUP" at player with pitch 1 volume 0.5
+						send "{@PREFIX} 성공적으로 해당 아이템을 구매했습니다."
+						log "[%now%] [%uuid of player%] [%player's ip%] %player% -> %{_Price}% 원 / %name of {Cash.shopID::%{_ID}%::%{_idx}%}% / %lore of {Cash.shopID::%{_ID}%::%{_idx}%}% - 남은 캐시 %{Cash.amount::%player's uuid%}%" to "[Hawol] 로그시스템/[Hawol] 캐시상점로그/전체 로그"
+						log "[%now%] [%uuid of player%] [%player's ip%] %player% -> %{_Price}% 원 / %name of {Cash.shopID::%{_ID}%::%{_idx}%}% / %lore of {Cash.shopID::%{_ID}%::%{_idx}%}% - 남은 캐시 %{Cash.amount::%player's uuid%}%" to "[Hawol] 로그시스템/[Hawol] 캐시상점로그/개인 로그/%player% - %player's ip%"
+					else:
+						play raw sound "BLOCK_NOTE_BASS" at player with pitch 0.5 volume 0.5
+						send "{@PREFIX} 인벤토리에 충분한 공간이 없습니다."
+				else:
+					play raw sound "BLOCK_NOTE_BASS" at player with pitch 0.5 volume 0.5
+					send "{@PREFIX} 해당 아이템을 구매할 캐시가 부족합니다."
+					
+				
+	if name of current inventory contains "&3&l[Option] &8ID:":
+		cancel event
+		if clicked item is air:
+			stop
+		if clicked item is not set:
+			stop
+		play raw sound "BLOCK_NOTE_PLING" at player with pitch 2 volume 0.5
+		set {_name} to uncolored name of current inventory
+		replace all "[Option] ID:" with "" in {_name}
+		
+		# 설정할 아이템의 데이터 커서 설정
+		clear {Cash.playerCur::%player's uuid%::*}
+		set {Cash.playerCur::%player's uuid%::SLOT} to clicked slot
+		set {Cash.playerCur::%player's uuid%::ITEM} to {Cash.shopID::%{_name}%::%clicked slot%}
+		set {Cash.playerCur::%player's uuid%::ID} to {_name}
+		
+		set {_inv} to chest with 1 rows named "&3&l상점 세부설정 &8SLOT:%clicked slot%"
+		set slot 0 of {_inv} to gold ingot named "&e&l가격 설정"
+		set slot 1 of {_inv} to nether star named "&b&l할인율 설정"
+		set slot 2 of {_inv} to painting named "&b&l할인 기간 설정"
+		set slot 8 of {_inv} to barrier named "&c&l뒤로가기"
+		open {_inv} to player
+		
+		
+	if name of current inventory contains "{@SHOP_PREFIX}":
+		#send "%clicked slot% , %name of clicked inventory%"
+		cancel event
+		
+	if name of current inventory contains "&3&l상점 세부설정":
+		cancel event
+		if name of clicked item is "&e&l가격 설정":
+			play raw sound "ENTITY_EXPERIENCE_ORB_PICKUP" at player with pitch 1 volume 0.5
+			set {_display} to name of {Cash.playerCur::%player's uuid%::ITEM}
+			if {_display} is not set:
+				set {_display} to type of {Cash.playerCur::%player's uuid%::ITEM}
+			set {Cash.playerCur::%player's uuid%::SELECT} to "PRICE"
+			send title "&6&l가격 설정" with subtitle "&f설정할 가격을 채팅에 입력해주세요" to player for 4.5 seconds and 0 ticks fade in and 1 second fadeout	  
+			send " "
+			send " "
+			send "{@PREFIX} &e%{_display}%&f의 가격을 채팅창에 입력해주세요."
+			send "{@PREFIX} &7숫자 이외 입력시 취소, -1 입력시 구매불가"
+			send " "
+			close player's inventory
+				
+		else if name of clicked item is "&b&l할인율 설정":
+			play raw sound "ENTITY_EXPERIENCE_ORB_PICKUP" at player with pitch 1 volume 0.5
+			set {_display} to name of {Cash.playerCur::%player's uuid%::ITEM}
+			if {_display} is not set:
+				set {_display} to type of {Cash.playerCur::%player's uuid%::ITEM}
+			set {Cash.playerCur::%player's uuid%::SELECT} to "SALE"
+			send title "&6&l할인율 설정" with subtitle "&f설정할 할인율을 채팅에 입력해주세요" to player for 4 seconds and 0 ticks fade in and 1 second fadeout	  
+			send " "
+			send " "
+			send "{@PREFIX} &e%{_display}%&f의 할인율 &e0~100 &f사이의 값을 채팅창에 입력해주세요."
+			send "{@PREFIX} &7숫자 이외 입력시 취소, 0 입력시 할인없음"
+			send " "
+			close player's inventory
+				
+		else if name of clicked item is "&6&l할인 기간 설정":
+			if {Cash.shopSlot::%{Cash.playerCur::%player's uuid%::ID}%::%{Cash.playerCur::%player's uuid%::SLOT}%::SALE} is not set:
+				send "{@PREFIX} 할인율을 설정하고 진행해주세요."
+				play raw sound "BLOCK_NOTE_BASS" at player with pitch 0.5 volume 0.5
+				stop
+			play raw sound "ENTITY_EXPERIENCE_ORB_PICKUP" at player with pitch 1 volume 0.5
+			set {_display} to name of {Cash.playerCur::%player's uuid%::ITEM}
+			if {_display} is not set:
+				set {_display} to type of {Cash.playerCur::%player's uuid%::ITEM}
+			set {Cash.playerCur::%player's uuid%::SELECT} to "DATE"
+			send title "&6&l할인기간 설정" with subtitle "&f설정할 할인기간을 채팅에 입력해주세요" to player for 4 seconds and 0 ticks fade in and 1 second fadeout	  
+			send " "
+			send " "
+			send "{@PREFIX} &e%{_display}%&f의 할인기간을 채팅창에 입력해주세요."
+			send "{@PREFIX} &71m : 1분/1h : 1시간/1d : 1일/잘못입력시 취소 (ex: 30d)"
+			send " "
+			close player's inventory
+				
+		else if name of clicked item is "&c&l뒤로가기":
+			play raw sound "BLOCK_NOTE_BASS" at player with pitch 0.5 volume 0.5
+			set {_ID} to {Cash.playerCur::%player's uuid%::ID}
+			set {_inv} to chest with {Cash.shopOption::%{_ID}%::ROW} rows named "&3&l[Option] &8ID:%{_ID}%"
+			set {_idx} to 0
+			loop {Cash.shopID::%{_ID}%::*}:
+				set {_item} to loop-value
+				if {_item} is not air:
+					add " " to lore of {_item}
+					add "&7&m─────────────────────────────" to lore of {_item}
+					if {Cash.shopSlot::%{_ID}%::%{_idx}%::PRICE} is set:
+						if {Cash.shopSlot::%{_ID}%::%{_idx}%::SALE} > 0 :
+							add "&e 구매가격 : &c&m%SetMoneyUnit({Cash.shopSlot::%{_ID}%::%{_idx}%::PRICE})%{@UNIT}&c → &f%SetMoneyUnit(SalePrice({Cash.shopSlot::%{_ID}%::%{_idx}%::PRICE},{Cash.shopSlot::%{_ID}%::%{_idx}%::SALE}))%{@UNIT}" to lore of {_item}
+						else:
+							add "&e 구매가격 : &f%SetMoneyUnit({Cash.shopSlot::%{_ID}%::%{_idx}%::PRICE})%{@UNIT}" to lore of {_item}
+						if {Cash.shopSlot::%{_ID}%::%{_idx}%::SALE} is set:
+							add "&e 할 인 율 : &f%{Cash.shopSlot::%{_ID}%::%{_idx}%::SALE}%%%" to lore of {_item}
+						else:
+							add "&e 할 인 율 : &f0%%" to lore of {_item}
+						if {Cash.shopSlot::%{_ID}%::%{_idx}%::DATE} is set:
+							add "&e 기간할인 : &f%{Cash.shopSlot::%{_ID}%::%{_idx}%::DATE}% 까지" to lore of {_item}
+						else:
+							add "&e 기간할인 : &f없음" to lore of {_item}
+					else:
+						add "&e 구매가격 : &c구매불가" to lore of {_item}
+					add "&7&m─────────────────────────────" to lore of {_item}
+				set slot {_idx} of {_inv} to {_item}
+				add 1 to {_idx}
+				if {_idx} >= {Cash.shopOption::%{_ID}%::ROW} * 9:
+					exit loop
+			open {_inv} to player
+		
+on Inventory Close:
+	if name of current inventory contains "&d&l[Edit] &8ID:":
+		set {_name} to uncolored name of current inventory
+		replace all "[Edit] ID:" with "" in {_name}
+		clear {Cash.shopID::%{_name}%::*}
+		loop {Cash.shopOption::%{_name}%::ROW} * 9 times:
+			set {Cash.shopID::%{_name}%::%loop-number -1%} to slot loop-number -1 of player's current inventory
+			# 슬롯에 아무것도 없다면 슬롯옵션값 초기화
+			if slot loop-number -1 of player's current inventory is air:
+				clear {Cash.shopSlot::%{_name}%::%loop-number -1%::*}
+		play raw sound "BLOCK_CHEST_CLOSE" at player with pitch 1 volume 0.3
+		send "{@PREFIX} 아이템 배치가 저장됬습니다."
+		
+
+command /캐시 [<player>]:
+	trigger:
+		if arg-1 is not set:
+			if player is not set:
+				send "{@PREFIX} 콘솔에서는 자신의 캐시를 확인할 수 없습니다."
+				stop
+			send "{@PREFIX} 현재 소지 캐쉬는&e %SetMoneyUnit({Cash.amount::%player's uuid%})% &r입니다."
+		else:
+			if player doesn't have permission "cash.check_other":
+				send "{@PREFIX} 다른 플레이어의 캐시를 확인할 권한이 없습니다."
+				stop
+			if {Cash.amount::%arg-1's uuid%} is not set:
+				send "{@PREFIX} 해당 플레이어 &e%arg-1%&r님을 찾을 수 없습니다."
+				stop
+			send "{@PREFIX} 플레이어 &e%arg-1%&f님의 소지 캐쉬는&e %SetMoneyUnit({Cash.amount::%arg-1's uuid%})% &r입니다."
+			
+command /cash [<text>] [<offline player>] [<text>] [<text>]:
+	trigger:
+		if arg-1 is "set":
+			if player doesn't have permission "cash.set":
+				send "{@PREFIX} 해당 명령어를 사용할 권한이 없습니다."
+				stop
+			if arg-2 is not set:
+				send "{@PREFIX} 플레이어를 입력해주세요"
+				stop
+			if {Cash.amount::%arg-2's uuid%} is not set:
+				send "{@PREFIX} 해당 플레이어 &e%arg-2%&r님을 찾을 수 없습니다."
+				stop
+			if arg-3 is not set:
+				send "{@PREFIX} 값을 입력해주세요"
+				stop
+			set {_int} to arg-3 parsed as number
+			if {_int} is not set:
+				send "{@PREFIX} 값이 올바르지 않습니다."
+				stop
+			if ({_int} < 0) or ({_int} > 1000000):
+				send "{@PREFIX} 값의 범위가 올바르지 않습니다."
+				stop
+			set {Cash.amount::%arg-2's uuid%} to {_int}
+			send "{@PREFIX} 성공적으로 &e%arg-2%&f님의 캐시를 &e%SetMoneyUnit({_int})% &f으(로) 설정했습니다"
+				
+		else if arg-1 is "give":
+			if player is set:
+				if player doesn't have permission "cash.give":
+					send "{@PREFIX} 해당 명령어를 사용할 권한이 없습니다."
+					stop
+			if arg-2 is not set:
+				send "{@PREFIX} 플레이어를 입력해주세요"
+				stop
+			if {Cash.amount::%arg-2's uuid%} is not set:
+				send "{@PREFIX} 해당 플레이어 &e%arg-2%&r님을 찾을 수 없습니다."
+				stop
+			if arg-3 is not set:
+				send "{@PREFIX} 값을 입력해주세요"
+				stop
+			set {_int} to arg-3 parsed as number
+			if {_int} is not set:
+				send "{@PREFIX} 값이 올바르지 않습니다."
+				stop
+			if ({_int} < 1) or ({_int} > 1000000):
+				send "{@PREFIX} 값의 범위가 올바르지 않습니다."
+				stop
+			set {Cash.amount::%arg-2's uuid%} to {Cash.amount::%arg-2's uuid%} + {_int}
+			send "{@PREFIX} 성공적으로 &e%arg-2%&f님의 캐시에 &e%SetMoneyUnit({_int})% &f만큼 추가했습니다."
+			
+			
+		else if arg-1 is "remove":
+			if player doesn't have permission "cash.remove":
+				send "{@PREFIX} 해당 명령어를 사용할 권한이 없습니다."
+				stop
+			if arg-2 is not set:
+				send "{@PREFIX} 플레이어를 입력해주세요"
+				stop
+			if {Cash.amount::%arg-2's uuid%} is not set:
+				send "{@PREFIX} 해당 플레이어 &e%arg-2%&r님을 찾을 수 없습니다."
+				stop
+			if arg-3 is not set:
+				send "{@PREFIX} 값을 입력해주세요"
+				stop
+			set {_int} to arg-3 parsed as number
+			if {_int} is not set:
+				send "{@PREFIX} 값이 올바르지 않습니다."
+				stop
+			if ({_int} < 1) or ({_int} > 1000000):
+				send "{@PREFIX} 값의 범위가 올바르지 않습니다."
+				stop
+			if {Cash.amount::%arg-2's uuid%} < {_int}:
+				send "{@PREFIX} 제거할 값이 해당 유저의 소지 캐시보다 큽니다."
+				stop
+			set {Cash.amount::%arg-2's uuid%} to {Cash.amount::%arg-2's uuid%} - {_int}
+			send "{@PREFIX} 성공적으로 &e%arg-2%&f님의 캐시에 &e%SetMoneyUnit({_int})% &f만큼 제거했습니다."
+			
+		else if arg-1 is "item":
+			if player doesn't have permission "cash.item":
+				send "{@PREFIX} 해당 명령어를 사용할 권한이 없습니다."
+				stop
+			if arg-2 is not set:
+				send "{@PREFIX} 플레이어를 입력해주세요"
+				stop
+			if {Cash.amount::%arg-2's uuid%} is not set:
+				send "{@PREFIX} 해당 플레이어 &e%arg-2%&r님을 찾을 수 없습니다."
+				stop
+			if arg-3 is not set:
+				send "{@PREFIX} 값을 입력해주세요"
+				stop
+			set {_int} to arg-3 parsed as number
+			if {_int} is not set:
+				send "{@PREFIX} 값이 올바르지 않습니다."
+				stop
+			if ({_int} < 1) or ({_int} > 100000):
+				send "{@PREFIX} 값의 범위가 올바르지 않습니다."
+				stop
+			if arg-4 is not set:
+				send "{@PREFIX} 갯수을 입력해주세요"
+				stop
+			set {_amount} to arg-4 parsed as number
+			if {_amount} is not set:
+				send "{@PREFIX} 갯수가 올바르지 않습니다."
+				stop
+			if ({_amount} < 1) or ({_amount} > 64):
+				send "{@PREFIX} 갯수의 범위가 올바르지 않습니다."
+				stop
+			give player {_amount} of paper named "{@SHOP_PREFIX} 캐시 수표" with lore " ", "&a&l ▪ &f캐시 : &e%SetMoneyUnit({_int})%C", " ", "&7우클릭시 이 수표를 소모해 해당 캐시를  ", "&7획득합니다." and " "
+			send "{@PREFIX} 성공적으로 지급됬습니다."
+				
+		else if arg-1 is "check":
+			if player doesn't have permission "cash.check_other":
+				send "{@PREFIX} 해당 명령어를 사용할 권한이 없습니다."
+				stop
+			if arg-2 is not set:
+				send "{@PREFIX} 플레이어를 입력해주세요"
+				stop
+			if {Cash.amount::%arg-2's uuid%} is not set:
+				send "{@PREFIX} 해당 플레이어 &e%arg-2%&r님을 찾을 수 없습니다."
+				stop
+			send "{@PREFIX} 플레이어 &e%arg-2%&f님의 소지 캐쉬는&e %SetMoneyUnit({Cash.amount::%arg-2's uuid%})% &r입니다."
+				
+				
+		else:
+			send "&7&m──────────────────&r {@PREFIX} 캐시설정 &7&m──────────────────&r"
+			send "&6/cash set <플레이어> <값>"
+			send "&7 ┗ &f해당 플레이어의 캐시를 입력된 값으로 설정합니다."
+			send ""
+			send "&6/cash give <플레이어> <값>"
+			send "&7 ┗ &f해당 플레이어에게 입력된 값만큼 캐시를 지급합니다."
+			send ""
+			send "&6/cash remove <플레이어> <값>"
+			send "&7 ┗ &f해당 플레이어에게 입력된 값만큼 캐시를 제외합니다."
+			send ""
+			send "&6/cash item <플레이어> <값> <갯수>"
+			send "&7 ┗ &f해당 플레이어의 값만큼의 캐시 수표를 갯수만큼 지급합니다."
+			send ""
+			send "&6/cash check <플레이어>"
+			send "&7 ┗ &f해당 플레이어의 캐시를 확인합니다."
+			send "&7&m──────────────────&r {@PREFIX} 캐시설정 &7&m──────────────────&r"
+		
+command /cashop [<text>] [<text>] [<text>] [<text>]:
+	trigger:
+		if arg-1 is "open":
+			if arg-2 is not set:
+				send "{@PREFIX} 열람할 상점ID를 입력해주세요"
+				stop
+			set {_ID} to uncolored arg-2
+			if {Cash.shopID::%{_ID}%::*} is not set:
+				send "{@PREFIX} &eID:%{_ID}% &f상점을 찾을 수 없습니다."
+				stop
+			set {_inv} to chest with {Cash.shopOption::%{_ID}%::ROW} rows named "%{Cash.shopOption::%{_ID}%::NAME}%"
+			set {_idx} to 0
+			loop {Cash.shopID::%{_ID}%::*}:
+				set {_item} to loop-value
+				if {_item} is not air:
+					set {_price} to "%SetMoneyUnit({Cash.shopSlot::%{_ID}%::%{_idx}%::PRICE})%{@UNIT}"
+					set {_sale} to "%{Cash.shopSlot::%{_ID}%::%{_idx}%::SALE}%"
+					set {_salePrice} to "%SetMoneyUnit(SalePrice({Cash.shopSlot::%{_ID}%::%{_idx}%::PRICE},{Cash.shopSlot::%{_ID}%::%{_idx}%::SALE}))%{@UNIT}"
+					
+					if {Cash.shopSlot::%{_ID}%::%{_idx}%::DATE} is set:
+						set {_time} to difference between {Cash.shopSlot::%{_ID}%::%{_idx}%::DATE} and now
+						set {_time} to "%{_time}%"
+						set {_array::*} to split {_time} at " "
+						set {_result} to ""
+						loop {_array::*}:
+							set {_tmp} to "%loop-value-2%"
+							if {_tmp} contains "and" or "day" or "hour" or "minute":
+								replace all "and" with "" in {_tmp}
+								replace all "days" and "day" with "일 " in {_tmp}
+								replace all "hours" and "hour" with "시간 " in {_tmp}
+								replace all "minutes" and "minute" with "분 " in {_tmp}
+							else:
+								set {_int} to {_tmp} parsed as number
+								set {_tmp} to round {_int}
+							set {_result} to "%{_result}%%{_tmp}%"
+					if {Cash.shopSlot::%{_ID}%::%{_idx}%::PRICE} is set:
+						add " " to lore of {_item}
+						add "&7&m─────────────────────────────────────" to lore of {_item}
+						if {Cash.shopSlot::%{_ID}%::%{_idx}%::SALE} is set:
+							if {Cash.shopSlot::%{_ID}%::%{_idx}%::DATE} is set:
+								add "&c&o    (%{_sale}%%%할인 %{_result}%&c&o남음!)" to lore of {_item}
+							else:
+								add "&c&o    (%{_sale}%%% 할인중!)" to lore of {_item}
+							add "&6 ● &6&l구매 : &c&m%{_price}%&c → &f%{_salePrice}%" to lore of {_item}
+						else:
+							add "&6 ● &6&l구매 : &f%{_price}%" to lore of {_item}
+
+						add "&7&m─────────────────────────────────────" to lore of {_item}
+					
+				set slot {_idx} of {_inv} to {_item}
+				add 1 to {_idx}
+				if {_idx} >= {Cash.shopOption::%{_ID}%::ROW} * 9:
+					exit loop
+			open {_inv} to player
+			
+			
+		else if arg-1 is "create":
+			# # # 예외 사항 # # #
+			if player doesn't have permission "cashop.create":
+				send "{@PREFIX} 해당 명령어를 사용할 권한이 없습니다."
+				stop
+			if arg-2 is not set:
+				send "{@PREFIX} 생성할 상점ID를 입력해주세요"
+				stop
+			set {_ID} to uncolored arg-2
+			set {_int} to arg-3 parsed as number
+			if {_int} is not set:
+				send "{@PREFIX} 입력된 상점의 줄 갯수 값이 올바르지 않습니다."
+				stop
+			if ({_int} < 1) or ({_int} > 6):
+				send "{@PREFIX} 줄 갯수 값은 &e1~6 &r사이의 값만 가능합니다."
+				stop
+			if {Cash.shopID::%{_ID}%::*} is set:
+				send "{@PREFIX} 같은 이름의 상점이 이미 존재합니다."
+				stop
+				
+			# # # 실행 코드 # # #
+			add {_ID} to {Cash.shopList::*}
+			set {Cash.shopOption::%{_ID}%::ROW} to {_int}
+			set {Cash.shopOption::%{_ID}%::NAME} to "{@SHOP_PREFIX} &8ID:%{_ID}%"
+			loop {_int} * 9 times:
+				set {_idx} to loop-number -1
+				add air to {Cash.shopID::%{_ID}%::*}
+			send "{@PREFIX} 성공적으로 &eID:%{_ID}% &f상점이 생성되었습니다. &7(/cashop edit %{_ID}%)"
+			
+			
+		else if arg-1 is "edit":
+			if player doesn't have permission "cashop.edit":
+				send "{@PREFIX} 해당 명령어를 사용할 권한이 없습니다."
+				stop
+			if arg-2 is not set:
+				send "{@PREFIX} 설정할 상점의 이름을 입력해주세요"
+				stop
+			set {_ID} to uncolored arg-2
+			if {Cash.shopID::%{_ID}%::*} is not set:
+				send "{@PREFIX} &eID:%{_ID}% &f상점을 찾을 수 없습니다."
+				stop
+			if arg-3 is "display":
+				if arg-4 is not set:
+					send "{@PREFIX} 변경할 표시제목을 입력해주세요" 
+					stop
+				set {Cash.shopOption::%{_ID}%::NAME} to "{@SHOP_PREFIX} &r%arg-4%"
+				send "{@PREFIX} 해당 상점의 표시제목을 ""%{Cash.shopOption::%{_ID}%::NAME}%"" &r로 변경했습니다." 
+				
+			else if arg-3 is "row":
+				if arg-4 is not set:
+					send "{@PREFIX} 변경할 줄 갯수를 입력해주세요" 
+					stop
+				set {_int} to arg-4 parsed as number
+				if {_int} is not set:
+					send "{@PREFIX} 입력된 줄 갯수가 올바르지 않습니다." 
+					stop
+				if ({_int} < 1) or ({_int} > 6):
+					send "{@PREFIX} 줄 갯수 값은 &e1~6 &r사이의 값만 가능합니다."
+					stop
+				set {Cash.shopOption::%{_ID}%::ROW} to {_int}
+				send "{@PREFIX} 해당 상점의 줄 갯수를 &e%{Cash.shopOption::%{_ID}%::ROW}% &r개로 변경했습니다." 
+			
+			else if arg-3 is "item":
+				play raw sound "BLOCK_CHEST_OPEN" at player with pitch 1 volume 0.3
+				set {_inv} to chest with {Cash.shopOption::%{_ID}%::ROW} rows named "&d&l[Edit] &8ID:%{_ID}%"
+				set {_idx} to 0
+				loop {Cash.shopID::%{_ID}%::*}:
+					set slot {_idx} of {_inv} to loop-value
+					add 1 to {_idx}
+					if {_idx} >= {Cash.shopOption::%{_ID}%::ROW} * 9:
+						exit loop
+				open {_inv} to player
+				
+			else if arg-3 is "option":
+				play raw sound "BLOCK_CHEST_OPEN" at player with pitch 1 volume 0.3
+				set {_inv} to chest with {Cash.shopOption::%{_ID}%::ROW} rows named "&3&l[Option] &8ID:%{_ID}%"
+				set {_idx} to 0
+				loop {Cash.shopID::%{_ID}%::*}:
+					set {_item} to loop-value
+					if {_item} is not air:
+						add " " to lore of {_item}
+						add "&7&m─────────────────────────────" to lore of {_item}
+						if {Cash.shopSlot::%{_ID}%::%{_idx}%::PRICE} is set:
+							if {Cash.shopSlot::%{_ID}%::%{_idx}%::SALE} > 0 :
+								add "&e 구매가격 : &c&m%SetMoneyUnit({Cash.shopSlot::%{_ID}%::%{_idx}%::PRICE})%{@UNIT}&c → &f%SetMoneyUnit(SalePrice({Cash.shopSlot::%{_ID}%::%{_idx}%::PRICE},{Cash.shopSlot::%{_ID}%::%{_idx}%::SALE}))%{@UNIT}" to lore of {_item}
+							else:
+								add "&e 구매가격 : &f%SetMoneyUnit({Cash.shopSlot::%{_ID}%::%{_idx}%::PRICE})%{@UNIT}" to lore of {_item}
+							if {Cash.shopSlot::%{_ID}%::%{_idx}%::SALE} is set:
+								add "&e 할 인 율 : &f%{Cash.shopSlot::%{_ID}%::%{_idx}%::SALE}%%%" to lore of {_item}
+							else:
+								add "&e 할 인 율 : &f0%%" to lore of {_item}
+							if {Cash.shopSlot::%{_ID}%::%{_idx}%::DATE} is set:
+								add "&e 기간할인 : &f%{Cash.shopSlot::%{_ID}%::%{_idx}%::DATE}% 까지" to lore of {_item}
+							else:
+								add "&e 기간할인 : &f없음" to lore of {_item}
+						else:
+							add "&e 구매가격 : &c구매불가" to lore of {_item}
+						add "&7&m─────────────────────────────" to lore of {_item}
+					set slot {_idx} of {_inv} to {_item}
+					add 1 to {_idx}
+					if {_idx} >= {Cash.shopOption::%{_ID}%::ROW} * 9:
+						exit loop
+				open {_inv} to player
+				
+			else:
+				send "&7&m──────────────────&r {@PREFIX} 상점설정 &7&m──────────────────&r"
+				send "&6/cashop edit %{_ID}% &6display <표시제목>"
+				send "&7 ┗ &f해당 상점의 표시제목을 변경합니다."
+				send ""
+				send "&6/cashop edit %{_ID}% &6row <줄 갯수>"
+				send "&7 ┗ &f해당 상점에 줄 갯수를 변경합니다."
+				send ""
+				send "&6/cashop edit %{_ID}% &6item"
+				send "&7 ┗ &f해당 상점에 아이템을 배치합니다."
+				send ""
+				send "&6/cashop edit %{_ID}% &6option"
+				send "&7 ┗ &f해당 상점의 배치된 아이템에 가격을 책정합니다."
+				#send ""
+				#send "&6/cashop edit %{_ID}% &6first"
+				#send "&7 ┗ &f해당 상점내 아이템의 첫구매 보너스 아이템을 설정합니다."
+				send "&7&m──────────────────&r {@PREFIX} 상점설정 &7&m──────────────────&r"
+			
+			
+		else if arg-1 is "list":
+			# # # 예외 사항 # # #
+			if player doesn't have permission "cashop.list":
+				send "{@PREFIX} 해당 명령어를 사용할 권한이 없습니다."
+				stop
+			set {_int} to arg-2 parsed as number
+			set {_Max} to round up (size of {Cash.shopList::*} / 10)
+			if ({_int} < 1) or ({_int} > {_Max}):
+				send "{@PREFIX} 상점 목록의 페이지는 &e1~%{_Max}% &r까지입니다."
+				stop
+				
+			# # # 실행 코드 # # #
+			if {_int} is not set:
+				set {_int} to 1
+			set {_idx} to ({_int} - 1) * 10 + 1
+			send "&6상점 목록 (%{_int}%&6/%{_Max}%&6) :"
+			loop {Cash.shopList::*}:
+				send "&e%{_idx}%&e. &r%loop-value%"
+				add 1 to {_idx}
+			
+			
+		else if arg-1 is "delete":
+			# # # 예외 사항 # # #
+			if player doesn't have permission "cashop.delete":
+				send "{@PREFIX} 해당 명령어를 사용할 권한이 없습니다."
+				stop
+			if arg-2 is not set:
+				send "{@PREFIX} 삭제할 상점의 ID를 입력해주세요"
+				stop
+			set {_ID} to uncolored arg-2
+			if {Cash.shopID::%{_ID}%::*} is not set:
+				send "{@PREFIX} 입력된 ID의 상점을 찾을 수 없습니다."
+				stop
+				
+			# # # 실행 코드 # # #
+			remove {_ID} from {Cash.shopList::*}
+			clear {Cash.shopID::%{_ID}%::*}
+			clear {Cash.shopOption::%{_ID}%::*}
+			
+			# 배열 재선언 (정리)
+			loop {Cash.shopList::*}:
+				add loop-value to {_tmp::*}
+			clear {Cash.shopList::*}
+			loop {_tmp::*}:
+				add loop-value to {Cash.shopList::*}
+				
+			send "{@PREFIX} 성공적으로 &eID:%{_ID}% &f상점이 삭제되었습니다."
+			
+				
+		else:
+			send "&7&m──────────────────&r {@PREFIX} 명령어 &7&m───────────────────&r"
+			send "&6/cashop open <상점ID>"
+			send "&7 ┗ &f해당 상점을 열람합니다."
+			send ""
+			send "&6/cashop create <상점ID> <줄 갯수>"
+			send "&7 ┗ &f줄 갯수 크기의 상점을 생성합니다."
+			send ""
+			send "&6/cashop edit <상점ID> ..."
+			send "&7 ┗ &f해당 상점의 옵션 수정 명령어를 불러옵니다."
+			send ""
+			send "&6/cashop list <페이지>"
+			send "&7 ┗ &f상점 목록을 불러옵니다."
+			send ""
+			send "&6/cashop delete <상점ID>."
+			send "&7 ┗ &f해당 상점을 삭제합니다"
+			#send ""
+			#send "&6/cashop rank"
+			#send "&7 ┗ &f서버에 등록된 플레이어의 화폐 순위를 불러옵니다."
+			send "&7&m──────────────────&r {@PREFIX} 명령어 &7&m───────────────────&r"
+			
+on right click with paper:	
+	if player's tool's name contains "{@SHOP_PREFIX} 캐시 수표":
+		cancel event
+		set {_lore::*} to uncolored lore of player's tool
+		set {_text} to {_lore::2}
+		replace all " ▪ 캐시 : " and "C" and "," with "" in {_text}
+		set {_int} to {_text} parsed as integer
+		remove 1 of player's tool from player's tool
+		set {Cash.amount::%player's uuid%} to {Cash.amount::%player's uuid%} + {_int}
+		send "{@PREFIX} 캐시수표를 사용하여 &e%SetMoneyUnit({_int})% &f캐시를 획득했습니다!"
+		
+		
+on right click with enchanted book:	
+	if player's tool's name contains "&b&l캐시 포인트 변경권":
+		if player's tool's name contains "&c&l빨간색":	
+			cancel event
+			execute console command "lp user %player% permission set eglow.color.red true"	
+			remove 1 of tool from tool
+			send "{@PREFIX} &f구입하신 광택이 성공적으로 추가 되었습니다. &7[ /광택 ]"	
